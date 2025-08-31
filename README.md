@@ -1,5 +1,3 @@
----
-
 ````markdown
 # 🎓 Student Affairs AI Email Agent  
 
