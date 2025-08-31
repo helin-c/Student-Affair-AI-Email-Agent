@@ -4,80 +4,286 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>n8n Workflow Viewer</title>
+
 <style>
-  html, body { height:100%; margin:0; }
+  :root {
+    --bg: #0b1220;
+    --bg-2: #0f172a;
+    --fg: #e5e7eb;
+    --muted: #94a3b8;
+    --accent: #60a5fa;
+    --btn-bg: rgba(0,0,0,.55);
+    --btn-fg: #fff;
+    --btn-border: rgba(255,255,255,.12);
+  }
+  html, body { height:100%; margin:0; background: var(--bg); color: var(--fg); }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji", "Segoe UI Symbol"; }
+
   #viewport {
-    width:100%; height:100%;
-    background:#0b1220; /* dark bg */
-    overflow:hidden; position:relative;
-    touch-action:none;
+    position: fixed; inset: 0;
+    overflow: hidden;
+    touch-action: none; /* required for good pan/zoom on mobile */
+    background: var(--bg);
   }
+
+  /* The image we pan/zoom */
   #img {
-    user-select:none; -webkit-user-drag:none; pointer-events:none;
-    max-width:none; /* allow beyond container */
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none; /* let gestures go to container */
+    max-width: none;
     transform-origin: 0 0;
+    image-rendering: auto;
   }
-  .hud {
+
+  /* Toolbar */
+  .toolbar {
     position: fixed; right: 12px; bottom: 12px;
-    background: rgba(0,0,0,.5); color: #fff; padding: 6px 10px; border-radius: 8px;
-    font-family: system-ui, sans-serif; font-size: 12px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    z-index: 10;
   }
-  .btn { margin-left: 6px; cursor:pointer; }
+  .group {
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px; border-radius: 10px;
+    background: var(--btn-bg); backdrop-filter: blur(6px);
+    border: 1px solid var(--btn-border);
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  }
+  button, a.btn {
+    appearance: none; border: 1px solid var(--btn-border);
+    background: transparent; color: var(--btn-fg);
+    padding: 6px 9px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; line-height: 1; display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none;
+  }
+  button:hover, a.btn:hover { background: rgba(255,255,255,.06); }
+  button:active, a.btn:active { transform: translateY(1px); }
+  .kbd {
+    font: inherit; font-size: 11px; color: var(--muted);
+    border: 1px solid var(--btn-border);
+    padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.06);
+  }
+
+  .hint {
+    position: fixed; left: 12px; bottom: 12px; z-index: 10;
+    color: var(--muted); font-size: 12px;
+    background: var(--btn-bg); border: 1px solid var(--btn-border);
+    padding: 8px 10px; border-radius: 10px; backdrop-filter: blur(6px);
+  }
+
+  /* Help modal */
+  .modal {
+    position: fixed; inset: 0; display: none; place-items: center; z-index: 50;
+    background: rgba(0,0,0,.6);
+  }
+  .modal.open { display: grid; }
+  .modal-card {
+    width: min(680px, 92vw); max-height: 80vh; overflow: auto;
+    background: var(--bg-2); color: var(--fg);
+    border: 1px solid var(--btn-border);
+    border-radius: 14px; padding: 16px 18px; box-shadow: 0 10px 35px rgba(0,0,0,.55);
+  }
+  .modal h2 { margin: 6px 0 8px; font-size: 18px; }
+  .modal ul { margin: 8px 0 0 18px; line-height: 1.7; color: var(--muted); }
+  .modal .close-row { display: flex; justify-content: flex-end; margin-top: 12px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .muted { color: var(--muted); }
+
+  /* Light background toggle state */
+  .light-bg #viewport { background: #f9fafb; }
+  .light-bg body { background: #f9fafb; color: #0b1220; }
+  .light-bg :root {
+    --btn-bg: rgba(255,255,255,.85);
+    --btn-fg: #0b1220;
+    --btn-border: rgba(0,0,0,.08);
+    --muted: #64748b;
+  }
 </style>
 </head>
 <body>
-  <div id="viewport">
-    <img id="img" src="./assets/full_workflow.png" alt="n8n Workflow">
-    <div class="hud">
-      Scroll to zoom · drag to pan
-      <span class="btn" id="zoomIn">＋</span>
-      <span class="btn" id="zoomOut">－</span>
-      <span class="btn" id="reset">⭯</span>
+  <div id="viewport" aria-label="Zoomable workflow image viewport">
+    <img id="img" src="./assets/full_workflow.png" alt="n8n Workflow" loading="eager">
+  </div>
+
+  <!-- Left hint -->
+  <div class="hint" aria-hidden="true">
+    Scroll to zoom · drag to pan · <span class="kbd">?</span> help
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar" role="toolbar" aria-label="Viewer controls">
+    <div class="group" aria-label="Zoom controls">
+      <button id="zoomOut" title="Zoom out ( - )" aria-label="Zoom out">－</button>
+      <div id="zoomPct" class="kbd" aria-live="polite">100%</div>
+      <button id="zoomIn" title="Zoom in ( + )" aria-label="Zoom in">＋</button>
+      <button id="reset" title="Reset ( 0 )" aria-label="Reset">⭯</button>
+      <button id="fit" title="Fit to screen" aria-label="Fit to screen">⤢</button>
+    </div>
+    <div class="group" aria-label="Display options">
+      <button id="toggleBg" title="Toggle background" aria-label="Toggle background">◐</button>
+      <button id="fullscreen" title="Fullscreen ( f )" aria-label="Fullscreen">⛶</button>
+      <a id="download" class="btn" href="./assets/full_workflow.png" download="full_workflow.png" title="Download image">⬇︎ Download</a>
+      <button id="help" title="Help ( ? )" aria-label="Help">?</button>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div id="helpModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-card">
+      <h2 id="helpTitle">Viewer shortcuts & tips</h2>
+      <ul>
+        <li><strong>Zoom:</strong> Mouse wheel / trackpad scroll · <span class="kbd">+</span> / <span class="kbd">-</span> keys · Toolbar buttons</li>
+        <li><strong>Pan:</strong> Click-drag (desktop) · One-finger drag (mobile)</li>
+        <li><strong>Center zoom:</strong> <em>Double-click</em> (desktop) · <em>Double-tap</em> (mobile)</li>
+        <li><strong>Reset:</strong> <span class="kbd">0</span> or ⭯ · <strong>Fit:</strong> ⤢</li>
+        <li><strong>Fullscreen:</strong> <span class="kbd">f</span> · <strong>Toggle background:</strong> ◐</li>
+        <li><strong>Download:</strong> ⬇︎ saves the PNG locally</li>
+      </ul>
+      <div class="close-row">
+        <button id="closeHelp">Close</button>
+      </div>
     </div>
   </div>
 
   <!-- Panzoom library -->
-  <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+  <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js" integrity="sha384-7e1mE4k9Lw0g1zSooql2yM7rVnF4CXPbX4s6iVho9Q+Jz+9nq3dQZVf6N3x8w1fG" crossorigin="anonymous"></script>
   <script>
-    const viewport = document.getElementById('viewport');
-    const img = document.getElementById('img');
+    (function () {
+      const viewport = document.getElementById('viewport');
+      const img = document.getElementById('img');
+      const zoomInBtn = document.getElementById('zoomIn');
+      const zoomOutBtn = document.getElementById('zoomOut');
+      const resetBtn = document.getElementById('reset');
+      const fitBtn = document.getElementById('fit');
+      const zoomPct = document.getElementById('zoomPct');
+      const toggleBg = document.getElementById('toggleBg');
+      const fsBtn = document.getElementById('fullscreen');
+      const helpBtn = document.getElementById('help');
+      const helpModal = document.getElementById('helpModal');
+      const closeHelp = document.getElementById('closeHelp');
+      const download = document.getElementById('download');
 
-    const panzoom = Panzoom(img, {
-      maxScale: 8,
-      minScale: 0.2,
-      step: 0.1,
-      contain: 'outside'
-    });
+      // Guard: show a friendly message if the image fails
+      img.addEventListener('error', () => {
+        zoomPct.textContent = 'Image not found';
+        alert('Could not load ./assets/full_workflow.png — check the path and filename.');
+      });
 
-    // Wheel zoom
-    viewport.addEventListener('wheel', e => {
-      e.preventDefault();
-      const scale = e.deltaY < 0 ? panzoom.getScale() + 0.15 : panzoom.getScale() - 0.15;
-      panzoom.zoomToPoint(scale, { clientX: e.clientX, clientY: e.clientY });
-    }, { passive: false });
+      // Create panzoom instance on the image
+      const panzoom = Panzoom(img, {
+        maxScale: 12,
+        minScale: 0.15,
+        step: 0.1,
+        contain: 'outside'
+      });
 
-    // Drag to pan
-    viewport.addEventListener('mousedown', e => panzoom.panStart(e));
-    window.addEventListener('mousemove', e => panzoom.pan(e));
-    window.addEventListener('mouseup', () => panzoom.panEnd());
+      // Wheel zoom anchored to pointer
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = -Math.sign(e.deltaY) * 0.18;
+        const next = panzoom.getScale() * (1 + delta);
+        panzoom.zoomToPoint(next, { clientX: e.clientX, clientY: e.clientY });
+        updateZoomPct();
+      }, { passive: false });
 
-    // HUD buttons
-    document.getElementById('zoomIn').onclick  = () => panzoom.zoomIn();
-    document.getElementById('zoomOut').onclick = () => panzoom.zoomOut();
-    document.getElementById('reset').onclick   = () => panzoom.reset({ animate: true });
+      // Drag to pan
+      viewport.addEventListener('mousedown', (e) => panzoom.panStart(e));
+      window.addEventListener('mousemove', (e) => panzoom.pan(e));
+      window.addEventListener('mouseup', () => panzoom.panEnd());
 
-    // Fit to screen
-    window.addEventListener('load', () => {
-      const scaleX = viewport.clientWidth  / img.naturalWidth;
-      const scaleY = viewport.clientHeight / img.naturalHeight;
-      const scale = Math.min(scaleX, scaleY) * 0.95;
-      panzoom.zoom(scale, { animate: false });
-      panzoom.pan(
-        (viewport.clientWidth  - img.naturalWidth  * scale) / 2,
-        (viewport.clientHeight - img.naturalHeight * scale) / 2,
-        { animate: false }
-      );
-    });
+      // Touch panning (Panzoom handles it; we just prevent default on passive)
+      viewport.addEventListener('touchstart', (e) => { /* Panzoom listens */ }, { passive: true });
+
+      // Double-click / double-tap to zoom in to cursor
+      let lastTap = 0;
+      viewport.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        panzoom.zoomToPoint(panzoom.getScale() * 1.6, { clientX: e.clientX, clientY: e.clientY });
+        updateZoomPct();
+      });
+      viewport.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          const touch = e.changedTouches[0];
+          panzoom.zoomToPoint(panzoom.getScale() * 1.6, { clientX: touch.clientX, clientY: touch.clientY });
+          updateZoomPct();
+        }
+        lastTap = now;
+      }, { passive: true });
+
+      // Buttons
+      zoomInBtn.onclick  = () => { panzoom.zoomIn(); updateZoomPct(); };
+      zoomOutBtn.onclick = () => { panzoom.zoomOut(); updateZoomPct(); };
+      resetBtn.onclick   = () => { panzoom.reset({ animate: true }); updateZoomPct(); smartCenter(); };
+      fitBtn.onclick     = () => { fitToScreen(); };
+
+      toggleBg.onclick   = () => { document.documentElement.classList.toggle('light-bg'); };
+
+      // Fullscreen
+      fsBtn.onclick = () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.();
+        } else {
+          document.exitFullscreen?.();
+        }
+      };
+
+      // Modal
+      const openHelp = () => helpModal.classList.add('open');
+      const closeHelpModal = () => helpModal.classList.remove('open');
+      helpBtn.onclick = openHelp;
+      closeHelp.onclick = closeHelpModal;
+      helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelpModal(); });
+
+      // Keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.key === '+') { panzoom.zoomIn(); updateZoomPct(); }
+        else if (e.key === '-') { panzoom.zoomOut(); updateZoomPct(); }
+        else if (e.key === '0') { panzoom.reset({ animate: true }); updateZoomPct(); smartCenter(); }
+        else if (e.key.toLowerCase() === 'f') { fsBtn.click(); }
+        else if (e.key === '?') { openHelp(); }
+        else if (e.key === 'Escape' && helpModal.classList.contains('open')) { closeHelpModal(); }
+      });
+
+      // Fit to screen on load and on resize
+      const fitToScreen = () => {
+        const vw = viewport.clientWidth, vh = viewport.clientHeight;
+        const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+        if (!iw || !ih) return; // not loaded yet
+        const scale = Math.min(vw / iw, vh / ih) * 0.98;
+        panzoom.zoom(scale, { animate: true });
+        // center the image
+        panzoom.pan((vw - iw * scale) / 2, (vh - ih * scale) / 2, { animate: true });
+        updateZoomPct();
+      };
+
+      // Gentle center without altering scale
+      const smartCenter = () => {
+        const vw = viewport.clientWidth, vh = viewport.clientHeight;
+        const s = panzoom.getScale();
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        panzoom.pan((vw - iw * s) / 2, (vh - ih * s) / 2, { animate: true });
+      };
+
+      const updateZoomPct = () => {
+        zoomPct.textContent = Math.round(panzoom.getScale() * 100) + '%';
+      };
+
+      // Initial fit once image dimensions are known
+      if (img.complete) {
+        fitToScreen();
+      } else {
+        img.addEventListener('load', fitToScreen, { once: true });
+      }
+      window.addEventListener('resize', () => {
+        // Keep current center roughly stable
+        smartCenter();
+      });
+
+      // Ensure the download link always points to the current image path
+      download.href = img.getAttribute('src');
+      download.setAttribute('download', img.src.split('/').pop() || 'full_workflow.png');
+    })();
   </script>
 </body>
 </html>

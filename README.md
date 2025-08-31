@@ -9,7 +9,7 @@ This workflow automates the processing of student emails, classifies and drafts 
 ---
 ![Full Workflow](docs/assets/full_workflow.png)
 
-[🔍 Open zoomable version](docs/zoom.html)
+[🔍 Open zoomable version](https://helin-c.github.io/Student-Affair-AI-Email-Agent/)
 
 ## ✨ Features  
 
