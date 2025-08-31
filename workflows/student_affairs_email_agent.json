@@ -1,0 +1,1779 @@
+{
+  "name": "student_affairs_email_agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📧 Email Intake & Initial Processing\n\nThis section handles incoming emails:\n1. **Gmail Trigger** - Polls for unread emails in inbox\n2. **Label as Pending** - Marks email for processing\n3. **Mark as Read** - Updates email status\n4. **Filter Check** - Excludes out-of-office replies",
+        "height": 228,
+        "width": 368,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1120,
+        832
+      ],
+      "typeVersion": 1,
+      "id": "b87660d0-bd6d-48c8-ae7a-152258892713",
+      "name": "Email Intake Section"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "includeSpamTrash": false,
+          "q": "in:inbox -is:spam -label:n8n/processed",
+          "readStatus": "unread"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1152,
+        1088
+      ],
+      "id": "f1c5f6cd-6768-4334-b13e-12d0f9164c25",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -816,
+        1088
+      ],
+      "id": "5f6ff51a-a5cc-4a3f-9d0a-9f544183c710",
+      "name": "Mark a message as read",
+      "webhookId": "90a9e53e-840a-42e8-a655-cdfc6f0bf458",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7d6faf02-56dd-4259-9c2a-9d67bbfcd316",
+              "leftValue": "={{ $('Gmail Trigger').item.json.Subject }}",
+              "rightValue": "Out of office|Auto-Reply",
+              "operator": {
+                "type": "string",
+                "operation": "notRegex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -640,
+        1088
+      ],
+      "id": "ac6a7f52-5b00-4575-ad6f-9317cfdb26ab",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "content": "## 🤖 AI Content Extraction & Classification\n\nThis section processes email content:\n1. **Information Extractor** - Extracts sender, subject, body\n2. **Message a Model** - Classifies email (category, urgency)\n3. **RAG Inputs** - Prepares data for response generation\n\nCategories: admissions, financial_aid, academics, housing, records, graduation, visa, other\nUrgency: 1-5 scale (5 = most urgent)",
+        "height": 248,
+        "width": 498,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -224,
+        720
+      ],
+      "typeVersion": 1,
+      "id": "f9c269a2-54c1-47d3-97ed-9eb9adc860c9",
+      "name": "AI Extraction Section"
+    },
+    {
+      "parameters": {
+        "text": "={{ $('Gmail Trigger').item.json.snippet }}{{ $('Gmail Trigger').item.json.Subject }}{{ $('Gmail Trigger').item.json.From }}",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "from",
+              "description": "Extract the sender's name from the email. If the name is not available, return an empty string",
+              "required": true
+            },
+            {
+              "name": "subject",
+              "description": "Extract the subject from the email. If the subject is not available, return an empty string",
+              "required": true
+            },
+            {
+              "name": "email_body",
+              "description": "Extract the snippet from the email. If the snippet is not available, return an empty string",
+              "required": true
+            }
+          ]
+        },
+        "options": {
+          "systemPromptTemplate": "You are an expert extraction algorithm.\nOnly extract relevant information from the text.\nIf you do not know the value of an attribute asked to extract, you may omit the attribute's value."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        -416,
+        992
+      ],
+      "id": "56aa7d05-d07a-41b4-829e-cbbc4df12293",
+      "name": "Information Extractor"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        1136
+      ],
+      "id": "3bdbb5b2-df0d-4db9-ae52-4a4a29320419",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "DZ21WrwWq8V8St6J",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a student affairs intake analyst. Extract the core request succinctly and classify it. Return ONLY valid JSON.\n\nFields:\nprimary_question: string\ncategory: one of [\"admissions\",\"financial_aid\",\"academics\",\"housing\",\"records\",\"graduation\",\"visa\",\"other\"]\nurgency: integer 1-5 (5 = urgent, deadline/visa/fees)\ninfo_needed: array of missing items (passport, student ID, course code, dates, etc.)\n",
+              "role": "system"
+            },
+            {
+              "content": "=Email (metadata):\nFrom: {{ $json.output.from }}\nSubject: {{ $json.output.subject }}\n\nBody:{{ $json.output.email_body }}\n\n\nReturn JSON ONLY.\n"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "maxTokens": 400,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -112,
+        992
+      ],
+      "id": "92638232-6da2-4a68-9ac4-e1e56bac635d",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "DZ21WrwWq8V8St6J",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9737cf5e-fc13-4bbe-bafc-6179ad0f1012",
+              "name": "primary_question",
+              "value": "={{ $json.message.content.primary_question }}",
+              "type": "string"
+            },
+            {
+              "id": "20aacdd7-c452-432d-8ac2-544b6e5f16e2",
+              "name": "category",
+              "value": "={{ $json.message.content.category }}",
+              "type": "string"
+            },
+            {
+              "id": "1439088e-8055-4f2f-b2ab-f1429fe18451",
+              "name": "urgency",
+              "value": "={{ $json.message.content.urgency }}",
+              "type": "string"
+            },
+            {
+              "id": "20c55340-f291-4a2e-b5cf-20ae8e7525f9",
+              "name": "info_needed",
+              "value": "={{ $json.message.content.info_needed }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        992
+      ],
+      "id": "6554cd84-7e8f-4963-9f3d-a324c4cf2d40",
+      "name": "RAG Inputs"
+    },
+    {
+      "parameters": {
+        "content": "## 🧠 RAG-Based Response Generation\n\nThis section generates AI responses:\n1. **AI Agent** - Searches knowledge base and generates response\n2. **Vector Store** - Searches policies, procedures, FAQs\n3. **OpenAI Models** - Powers the AI reasoning\n\nThe agent:\n- Always searches the knowledge base first\n- References specific policies when found\n- Provides warm, professional responses\n- Includes source citations",
+        "height": 300,
+        "width": 484,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        608,
+        1296
+      ],
+      "typeVersion": 1,
+      "id": "79b3479f-fb85-451b-a071-018dec3699bd",
+      "name": "RAG Generation Section"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Student Request Context:\n\nPrimary Question: {{$json[\"primary_question\"]}}\nCategory: {{$json[\"category\"] || \"other\"}}\nUrgency Level (1–5): {{$json[\"urgency\"] || 3}}\nMissing Information (if any): {{ $json.info_needed }}\n\nOriginal Email Metadata:\n- From: {{ $('Information Extractor').item.json.output.from }}\n- Subject: {{ $('Information Extractor').item.json.output.subject }}\n\nFull Email Content:\n{{ $('Information Extractor').item.json.output.email_body }}\n",
+        "options": {
+          "systemMessage": "=You are a Student Affairs assistant responsible for drafting professional replies to student emails.\n\nYour job is to:\n1. Always call the available search tool first to retrieve relevant policies, procedures, FAQs, and contact information. Never answer without consulting the search tool.\n2. Write a warm, professional, and personalized email reply, addressing the student by name when possible (use the \"From\" field if available).\n3. Reference specific policy numbers, names, or URLs when found in the search results.\n4. If the search returns no relevant results, do not invent policies. Instead:\n   - Politely explain that the requested information could not be found in the knowledge base\n   - Provide the most appropriate contact (from context) or list exactly what details are missing in bullet points\n5. Keep the reply concise (around 150–200 words), focusing only on information relevant to the student's question.\n6. At the end of the reply, add a compact \"Sources\" line listing any referenced policy numbers, titles, or URLs.\n7. Always end the email with:  \n   Kind regards,  \n   Student Affairs Team\n",
+          "returnIntermediateSteps": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        992
+      ],
+      "id": "8b5a810f-9467-412e-9dbb-f49d8e6a490b",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        1168
+      ],
+      "id": "b0fe5787-6945-47cb-bb5f-8588830ab7d8",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "DZ21WrwWq8V8St6J",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the student affairs knowledge base for policies, procedures, FAQs, and contact information to help answer student questions",
+        "tableName": {
+          "__rl": true,
+          "value": "knowledge_base",
+          "mode": "list",
+          "cachedResultName": "knowledge_base"
+        },
+        "topK": 8,
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        1184
+      ],
+      "id": "1c1c7a4a-be08-49a9-be68-9eab3ae189bc",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        1312
+      ],
+      "id": "928c9a0c-2778-4b05-a864-99e9cd8e6b73",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "DZ21WrwWq8V8St6J",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 📝 Approval Queue System\n\nThis section manages the approval process:\n1. **Queue for Approval** - Stores email in database\n2. **Log Queue Creation** - Records audit trail\n3. **Clean AI Response** - Formats for Slack display\n4. **Send to Slack** - Notifies approvers\n5. **Store Slack Info** - Links message to queue\n\nAll emails require human approval before sending",
+        "height": 248,
+        "width": 432,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1440,
+        1152
+      ],
+      "typeVersion": 1,
+      "id": "135c3089-6cc2-4992-9bc6-ca66e89154f0",
+      "name": "Approval Queue Section"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fmtzzxdjrlvsmjxueffu.supabase.co/rest/v1/approval_queue?select=*",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    gmail_message_id: $('Gmail Trigger').item.json.id,\n    student_email: $('Gmail Trigger').item.json.From,\n    student_name: $('Information Extractor').item.json.output.from,\n    subject: 'RE: ' + $('Gmail Trigger').item.json.Subject,\n    original_content: $('Information Extractor').item.json.output.email_body,\n    ai_response: $('AI Agent').item.json.output,\n    category: $('RAG Inputs').item.json.category,\n    urgency: parseInt($('RAG Inputs').item.json.urgency),\n    status: 'processed'\n  })\n}}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1056,
+        992
+      ],
+      "id": "42ada3d7-459b-4853-8942-d4d8d22c127a",
+      "name": "Queue for Approval",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fmtzzxdjrlvsmjxueffu.supabase.co/rest/v1/approval_log",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n      approval_queue_id: $('Queue for Approval').item.json.id,\n      action: 'created',\n      actor_slack_id: 'system',\n      actor_name: 'AI Agent',\n      notes: 'Email queued for approval after AI processing'\n    }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        992
+      ],
+      "id": "32baea12-c994-4e8f-8b2e-fa7b14266003",
+      "name": "Log Queue Creation",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the AI response and clean it for Slack\nconst aiResponse = $('AI Agent').first().json.output;\n\n// Clean the response: remove ALL newlines and escape quotes\nconst cleanedResponse = aiResponse\n  .replace(/\\n/g, ' ')      // Replace ALL newlines with spaces\n  .replace(/\"/g, '\\\\\"')     // Escape quotes\n  .substring(0, 2800);      // Limit length to avoid Slack limits\n\nreturn [{\n  json: {\n    cleanedAiResponse: cleanedResponse\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        992
+      ],
+      "id": "c61de799-cd67-4f3b-ae80-3f1ecf9fc1b2",
+      "name": "Clean AI Response"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#student-affairs",
+          "mode": "name"
+        },
+        "messageType": "block",
+        "blocksUi": "={\n\t\"blocks\": [\n\t\t{\n\t\t\t\"type\": \"section\",\n\t\t\t\"text\": {\n\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\"text\": \"You have a new email approval request:\\n*Email Response Ready for Review*\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"type\": \"section\",\n\t\t\t\"fields\": [\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\t\"text\": \"*Student:*\\n{{ $('Information Extractor').item.json.output.from }}\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\t\"text\": \"*Category:*\\n{{ $('RAG Inputs').item.json.category }}\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\t\"text\": \"*Urgency:*\\n{{ $('RAG Inputs').item.json.urgency }}/5\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\t\"text\": \"*Subject:*\\n{{ $('Gmail Trigger').item.json.Subject }}\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\t\"text\": \"*Queue ID:*\\n{{ $('Queue for Approval').item.json.id }}\"\n\t\t\t\t}\n\t\t\t]\n\t\t},\n\t\t{\n\t\t\t\"type\": \"section\",\n\t\t\t\"text\": {\n\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\"text\": \"*Student's Message:*\\n{{ $('Information Extractor').item.json.output.email_body }}\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"type\": \"section\",\n\t\t\t\"text\": {\n\t\t\t\t\"type\": \"mrkdwn\",\n\t\t\t\t\"text\": \"*AI Response:*\\n{{ $json.cleanedAiResponse }}\"\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"type\": \"actions\",\n\t\t\t\"elements\": [\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"button\",\n\t\t\t\t\t\"text\": {\n\t\t\t\t\t\t\"type\": \"plain_text\",\n\t\t\t\t\t\t\"emoji\": true,\n\t\t\t\t\t\t\"text\": \"Approve & Send\"\n\t\t\t\t\t},\n\t\t\t\t\t\"style\": \"primary\",\n\t\t\t\t\t\"action_id\": \"approve_email\",\n\t\t\t\t\t\"value\": \"{{ $('Queue for Approval').item.json.id }}\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"type\": \"button\",\n\t\t\t\t\t\"text\": {\n\t\t\t\t\t\t\"type\": \"plain_text\",\n\t\t\t\t\t\t\"emoji\": true,\n\t\t\t\t\t\t\"text\": \"Reject\"\n\t\t\t\t\t},\n\t\t\t\t\t\"style\": \"danger\",\n\t\t\t\t\t\"action_id\": \"reject_email\",\n\t\t\t\t\t\"value\": \"{{ $('Queue for Approval').item.json.id }}\"\n\t\t\t\t}\n\t\t\t]\n\t\t}\n\t]\n}",
+        "text": "Approval Needed for Email ",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        992
+      ],
+      "id": "dda97c18-7090-45ef-9010-409388d7b517",
+      "name": "Send a message",
+      "webhookId": "c8976843-1d47-428e-b8bb-a5ef90f30b31",
+      "credentials": {
+        "slackApi": {
+          "id": "tcIZkjXQ3DIn0E0H",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://{{SUPABASE_URL}}.supabase.co/rest/v1/approval_queue?id=eq.{{ $('Queue for Approval').item.json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    slack_channel: $('Send a message').item.json.channel,\n    slack_message_ts: $('Send a message').item.json.message_timestamp\n  })\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1712,
+        992
+      ],
+      "id": "167928f9-39f1-45df-a58a-c7226ceb442a",
+      "name": "Store Slack Info",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 💬 Slack Approval Workflow\n\nHandles Slack button interactions:\n1. **Slack Webhook** - Receives button clicks\n2. **Parse Action** - Extracts approval/rejection\n3. **Get Queued Email** - Retrieves email details\n4. **Check Action** - Routes to approve/reject flow\n5. **Update Messages** - Updates Slack with decision\n\nApprovers click buttons in Slack to approve/reject emails",
+        "height": 248,
+        "width": 452,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        352,
+        2960
+      ],
+      "typeVersion": 1,
+      "id": "accc18e1-f179-4692-bce9-f3ad431484b8",
+      "name": "Slack Approval Section"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-approval",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        384,
+        2800
+      ],
+      "id": "c44ce397-01cf-456e-aefa-96d08b8b6159",
+      "name": "Slack Webhook",
+      "webhookId": "9cb838ac-fab5-4686-a136-f323e6c2bc13"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Action processed successfully",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        544,
+        2800
+      ],
+      "id": "461f372b-70fe-44a8-8802-dcc67732cce9",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the Slack interaction payload\nconst payload = JSON.parse($json.body.payload);\nconst action = payload.actions[0];\nconst user = payload.user;\n\nreturn [{\n  json: {\n    action: action.action_id, // \"approve_email\" or \"reject_email\"\n    queue_id: action.value,\n    reviewer_id: user.id,\n    reviewer_name: user.name,\n    channel: payload.channel.id,\n    message_ts: payload.message.ts,\n    response_url: payload.response_url\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        2800
+      ],
+      "id": "20ee677e-4851-4c67-b9e2-02a9f5d129ae",
+      "name": "Parse Slack Action"
+    },
+    {
+      "parameters": {
+        "url": "=https://{{SUPABASE_URL}}.supabase.co/rest/v1/approval_queue?id=eq.{{ $json.queue_id }}&select=*",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        2800
+      ],
+      "id": "79e66ab1-6585-4e7b-b69f-250b5098e3d3",
+      "name": "Get Queued Email",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8e58d857-80f3-4e6a-ad64-2fb9719afa7a",
+              "leftValue": "={{ $('Parse Slack Action').item.json.action }}",
+              "rightValue": "approve_email",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1056,
+        2800
+      ],
+      "id": "27492d0b-15aa-4ef7-9e9a-3ec44874ea20",
+      "name": "Check Action"
+    },
+    {
+      "parameters": {
+        "content": "## ✅ Approval Flow\n\nWhen email is approved:\n1. **Send Email** - Sends formatted response to student\n2. **Update Labels** - Marks as approved, removes processed\n3. **Mark as Approved** - Updates database status\n4. **Log Approval** - Records audit trail\n5. **Update Slack** - Shows approval confirmation",
+        "height": 212,
+        "width": 428,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1520,
+        2448
+      ],
+      "typeVersion": 1,
+      "id": "b29e1589-987e-4f3b-8e23-accfca74ee26",
+      "name": "Approval Flow Section"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Get Queued Email').item.json.student_email }}",
+        "subject": "={{ $('Get Queued Email').item.json.subject }}",
+        "message": "=<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <style>\n        body { \n            font-family: 'Times New Roman', Times, serif;\n            margin: 0; \n            padding: 0; \n            background-color: #ffffff; \n            line-height: 1.8;\n            color: #2d3748;\n        }\n        .letter-container { \n            max-width: 650px; \n            margin: 0 auto; \n            background: #ffffff; \n            min-height: 100vh;\n        }\n        .letterhead {\n            border-bottom: 3px solid #1a365d;\n            padding: 25px 40px;\n            background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);\n        }\n        .university-logo {\n            text-align: center;\n            margin-bottom: 15px;\n        }\n        .university-name {\n            font-size: 28px;\n            font-weight: bold;\n            color: #1a365d;\n            margin: 0;\n            text-transform: uppercase;\n            letter-spacing: 1px;\n        }\n        .department-info {\n            text-align: center;\n            margin-top: 8px;\n        }\n        .department-name {\n            font-size: 18px;\n            color: #4a5568;\n            font-weight: 600;\n            margin: 0;\n        }\n        .department-details {\n            font-size: 12px;\n            color: #718096;\n            margin: 5px 0 0 0;\n            line-height: 1.4;\n        }\n        .letter-content {\n            padding: 40px 40px 30px 40px;\n        }\n        .date-ref {\n            text-align: right;\n            margin-bottom: 30px;\n            font-size: 14px;\n            color: #4a5568;\n        }\n        .greeting {\n            margin-bottom: 25px;\n            font-size: 16px;\n            font-weight: 500;\n        }\n        .letter-body {\n            margin-bottom: 30px;\n            white-space: pre-line;\n            font-size: 15px;\n            line-height: 1.7;\n            text-align: justify;\n        }\n        .signature-section {\n            margin-top: 40px;\n            margin-bottom: 30px;\n        }\n        .closing {\n            margin-bottom: 50px;\n        }\n        .signature-line {\n            border-bottom: 1px solid #4a5568;\n            width: 250px;\n            margin: 10px 0 5px 0;\n        }\n        .signature-name {\n            font-weight: 600;\n            margin: 0;\n        }\n        .signature-title {\n            font-size: 14px;\n            color: #4a5568;\n            margin: 2px 0;\n        }\n        .footer-info {\n            background: #f7fafc;\n            border-top: 1px solid #e2e8f0;\n            padding: 20px 40px;\n            font-size: 12px;\n            color: #718096;\n        }\n        .contact-grid {\n            display: grid;\n            grid-template-columns: 1fr 1fr;\n            gap: 20px;\n            margin-bottom: 15px;\n        }\n        .contact-item {\n            display: flex;\n            align-items: center;\n        }\n        .contact-label {\n            font-weight: 600;\n            margin-right: 8px;\n            min-width: 60px;\n        }\n        .reference-number {\n            font-family: 'Courier New', monospace;\n            font-size: 12px;\n            background: #edf2f7;\n            padding: 2px 6px;\n            border-radius: 3px;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"letter-container\">\n        <div class=\"letterhead\">\n            <div class=\"university-logo\">\n                <div class=\"university-name\">University Name</div>\n            </div>\n            <div class=\"department-info\">\n                <div class=\"department-name\">Office of Student Affairs</div>\n                <div class=\"department-details\">\n                    Student Services Building, Room 101 • University City, State 12345<br>\n                    Phone: (555) 123-4567 • Email: studentaffairs@university.edu\n                </div>\n            </div>\n        </div>\n\n        <div class=\"letter-content\">\n            <div class=\"date-ref\">\n                <div>Date: {{ new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}</div>\n                <div style=\"margin-top: 5px;\">Ref: <span class=\"reference-number\">SA-{{ $('Get Queued Email').item.json.id }}-2025</span></div>\n            </div>\n\n          \n\n            <div class=\"letter-body\">{{ $('Get Queued Email').item.json.ai_response }}</div>\n\n            <div class=\"signature-section\">\n                <div class=\"closing\">\n                    Sincerely,\n                </div>\n                <div class=\"signature-line\"></div>\n                <div class=\"signature-name\">Dr. Sarah Johnson</div>\n                <div class=\"signature-title\">Director of Student Affairs</div>\n                <div class=\"signature-title\">University Name</div>\n            </div>\n        </div>\n\n        <div class=\"footer-info\">\n            <div class=\"contact-grid\">\n                <div class=\"contact-item\">\n                    <span class=\"contact-label\">Website:</span>\n                    <span>www.university.edu/student-affairs</span>\n                </div>\n                <div class=\"contact-item\">\n                    <span class=\"contact-label\">Hours:</span>\n                    <span>Monday–Friday, 9:00 AM – 5:00 PM</span>\n                </div>\n                <div class=\"contact-item\">\n                    <span class=\"contact-label\">Emergency:</span>\n                    <span>(555) 123-HELP (4357)</span>\n                </div>\n                <div class=\"contact-item\">\n                    <span class=\"contact-label\">Online:</span>\n                    <span>student.portal.university.edu</span>\n                </div>\n            </div>\n            <div style=\"text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;\">\n                <strong>Confidential Communication</strong> - This correspondence is intended solely for the addressee. \n                If you have received this in error, please contact our office immediately.\n            </div>\n        </div>\n    </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1280,
+        2688
+      ],
+      "id": "d0172c7c-7480-48e6-b870-d14bf78d4c1b",
+      "name": "Send Approved Email",
+      "webhookId": "18d2198f-1b7f-4ccd-8545-e535a8907c77",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Get Queued Email').item.json.gmail_message_id }}",
+        "labelIds": [
+          "Label_9111472437067783112"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1472,
+        2688
+      ],
+      "id": "5bd0d46e-802c-4c21-a87e-03c13ac6e111",
+      "name": "Labeled as Approved",
+      "webhookId": "460d3961-ed2f-4c95-bf2c-f080b73f6808",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $('Get Queued Email').item.json.gmail_message_id }}",
+        "labelIds": [
+          "Label_823862680926962991"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1664,
+        2688
+      ],
+      "id": "599156c2-bcf9-4b82-9787-afcf2be6401e",
+      "name": "Remove to Approved from Processed",
+      "webhookId": "012953af-236b-4ff4-bdb6-09901628a138",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://{{SUPABASE_URL}}supabase.co/rest/v1/approval_queue?id=eq.{{ $('Parse Slack Action').item.json.queue_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"approved\",\n  \"reviewed_at\": \"{{ $now }}\",\n  \"reviewer_slack_id\": \"{{ $('Parse Slack Action').item.json.reviewer_id }}\",\n  \"reviewer_name\": \"{{ $('Parse Slack Action').item.json.reviewer_name }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        2688
+      ],
+      "id": "550e96f9-5080-4d22-adac-24281dba2b05",
+      "name": "Mark as Approved",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_URL}}.supabase.co/rest/v1/approval_log",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"approval_queue_id\": \"{{ $node['Parse Slack Action'].json.queue_id }}\",\n  \"action\": \"approved\",\n  \"actor_slack_id\": \"{{ $node['Parse Slack Action'].json.reviewer_id }}\",\n  \"actor_name\": \"{{ $node['Parse Slack Action'].json.reviewer_name }}\",\n  \"notes\": \"Email approved and sent to student via Slack interaction\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2032,
+        2688
+      ],
+      "id": "afad78c0-b096-4ac6-8189-a9c4d6ac6bac",
+      "name": "Log Approval",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5152629a-d014-4b0f-9ab4-fe83f7926e8c",
+              "name": "decision_action",
+              "value": "={{ $('Parse Slack Action').item.json.action }}",
+              "type": "string"
+            },
+            {
+              "id": "69ab4367-3023-4c6b-a2ce-cab4e32041eb",
+              "name": "reviewer_id",
+              "value": "={{ $('Parse Slack Action').item.json.reviewer_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a77f6710-0269-445d-bdb2-d170c4e344eb",
+              "name": "queue_id",
+              "value": "={{ $('Parse Slack Action').item.json.queue_id }}",
+              "type": "string"
+            },
+            {
+              "id": "1af06299-8048-4f41-bf1a-2800c7c3f115",
+              "name": "channel",
+              "value": "={{ $('Parse Slack Action').item.json.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "7bff6040-2139-4d71-a2ad-9d3c52aa711f",
+              "name": "message_ts",
+              "value": "={{ $('Parse Slack Action').item.json.message_ts }}",
+              "type": "string"
+            },
+            {
+              "id": "b3d9d8f7-be76-4ab2-9287-8ac48d7e18e0",
+              "name": "reviewer_name",
+              "value": "={{ $('Parse Slack Action').item.json.reviewer_name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2208,
+        2688
+      ],
+      "id": "1999a651-2895-4e57-8171-7376cf8a9050",
+      "name": "Edit Fields for Approved"
+    },
+    {
+      "parameters": {
+        "content": "## ❌ Rejection Flow\n\nWhen email is rejected:\n1. **Label as Rejected** - Marks email in Gmail\n2. **Remove Processed Label** - Updates status\n3. **Mark as Rejected** - Updates database\n4. **Log Rejection** - Records audit trail\n5. **Update Slack** - Shows rejection confirmation\n\nRejected emails are not sent to students",
+        "height": 248,
+        "width": 396
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1536,
+        3088
+      ],
+      "typeVersion": 1,
+      "id": "4aa3843e-8eb5-409b-b2e5-5c1a1e084912",
+      "name": "Rejection Flow Section"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Get Queued Email').item.json.gmail_message_id }}",
+        "labelIds": [
+          "Label_1674304207223907979"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1280,
+        2896
+      ],
+      "id": "8970e140-94ae-484f-9d4a-9570dfbec562",
+      "name": "Labeled as Rejected",
+      "webhookId": "fdb59922-7321-4ffc-b4c4-ac6faafdcad8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $('Get Queued Email').item.json.gmail_message_id }}",
+        "labelIds": [
+          "Label_823862680926962991"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1472,
+        2896
+      ],
+      "id": "0064f270-e96a-4bf6-b08f-e82fccc08c86",
+      "name": "Remove to Rejected from Processed",
+      "webhookId": "1fda0908-10f3-4fd1-8ae8-ed08afb53314",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://{{SUPABASE_URL}}.supabase.co/rest/v1/approval_queue?id=eq.{{ $('Parse Slack Action').item.json.queue_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"rejected\",\n  \"reviewed_at\": \"{{ $now }}\",\n  \"reviewer_slack_id\": \"{{ $('Parse Slack Action').item.json.reviewer_id }}\",\n  \"reviewer_name\": \"{{ $('Parse Slack Action').item.json.reviewer_name }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1664,
+        2896
+      ],
+      "id": "5a400059-bb1a-4a32-9a8d-bbc4ebe3ca5c",
+      "name": "Mark as Rejected",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_URL}.supabase.co/rest/v1/approval_log",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"approval_queue_id\": \"{{ $node['Parse Slack Action'].json.queue_id }}\",\n  \"action\": \"rejected\",\n  \"actor_slack_id\": \"{{ $node['Parse Slack Action'].json.reviewer_id }}\",\n  \"actor_name\": \"{{ $node['Parse Slack Action'].json.reviewer_name }}\",\n  \"notes\": \"Email rejected and sent to student via Slack interaction\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        2896
+      ],
+      "id": "9568a276-c43c-4a65-a68a-9dcee93b8654",
+      "name": "Log Rejection",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5152629a-d014-4b0f-9ab4-fe83f7926e8c",
+              "name": "decision_action",
+              "value": "={{ $('Parse Slack Action').item.json.action }}",
+              "type": "string"
+            },
+            {
+              "id": "69ab4367-3023-4c6b-a2ce-cab4e32041eb",
+              "name": "reviewer_id",
+              "value": "={{ $('Parse Slack Action').item.json.reviewer_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a77f6710-0269-445d-bdb2-d170c4e344eb",
+              "name": "queue_id",
+              "value": "={{ $('Parse Slack Action').item.json.queue_id }}",
+              "type": "string"
+            },
+            {
+              "id": "1af06299-8048-4f41-bf1a-2800c7c3f115",
+              "name": "channel",
+              "value": "={{ $('Parse Slack Action').item.json.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "7bff6040-2139-4d71-a2ad-9d3c52aa711f",
+              "name": "message_ts",
+              "value": "={{ $('Parse Slack Action').item.json.message_ts }}",
+              "type": "string"
+            },
+            {
+              "id": "e0be02f7-729f-4500-b8a9-1a58fc715fad",
+              "name": "reviewer_name",
+              "value": "={{ $('Parse Slack Action').item.json.reviewer_name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2032,
+        2896
+      ],
+      "id": "d8375356-3246-42df-8a99-845c8dee55b3",
+      "name": "Edit Fields for Rejected"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $('Parse Slack Action').item.json.channel }}",
+          "mode": "id"
+        },
+        "ts": "={{ $('Parse Slack Action').item.json.message_ts }}",
+        "messageType": "block",
+        "blocksUi": "={\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"{{ $json.decision_action === 'approve_email' ? '✅ *Email Approved & Sent*' : '❌ *Email Rejected*' }}\\n*Reviewed by:* <@{{ $json.reviewer_id }} // {{ $json.reviewer_name }}>\\n*Queue ID:* {{ $json.queue_id }}\\n*Time:* <!date^{{ Math.floor(Date.now()/1000) }}^{date_short_pretty} at {time}|now>\"\n      }\n    }\n  ]\n}",
+        "text": "=Decision: {{ $json.decision_action === 'approve_email' ? '✅ *Email Approved & Sent*' : '❌ *Email Rejected*' }}\\n*Reviewed by:* <@{{ $json.reviewer_id }}>\\n*Queue ID:* {{ $json.queue_id }}\\n*Time:* <!date^{{ Math.floor(Date.now()/1000) }}^{date_short_pretty} at {time}|now>",
+        "updateFields": {},
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        2400,
+        2832
+      ],
+      "id": "5e632e45-7cde-4326-a4d9-fcaa82ef7d9f",
+      "name": "Update Approved or Rejected Message",
+      "webhookId": "22fc5bb7-aed2-4f57-9f15-9784b4f7194c",
+      "credentials": {
+        "slackApi": {
+          "id": "tcIZkjXQ3DIn0E0H",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🏷️ Email Labeling System\n\n**Gmail Labels Used:**\n- **n8n/processed** - Email has been processed by AI\n- **n8n/pending** - Email is being processed\n- **n8n/approved** - Response was approved and sent\n- **n8n/rejected** - Response was rejected\n- **n8n/error** - Processing error occurred\n\nLabels help track email status throughout the workflow",
+        "height": 248,
+        "width": 428,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        912,
+        688
+      ],
+      "typeVersion": 1,
+      "id": "ff5fd56d-de28-41cb-943e-9d5c6d32afe5",
+      "name": "Email Labeling System"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_1676358472808098076"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -992,
+        1088
+      ],
+      "id": "ab123153-929d-4192-a5e8-deddc6e2053a",
+      "name": "Labeled as Pending",
+      "webhookId": "babcfcbc-866a-4b56-b085-5b72493d2ea9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_823862680926962991"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        992
+      ],
+      "id": "542eaed3-8666-4075-abf0-9e56c676e1ed",
+      "name": "Labelad as Processed",
+      "webhookId": "d3ccf286-6d20-4d6a-a3c3-661571e37b28",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_1676358472808098076"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        864,
+        992
+      ],
+      "id": "05c22365-56ea-411f-b97e-7caf6aebcb81",
+      "name": "Removed from Pending for Processed",
+      "webhookId": "0380c371-aa12-4dbf-a61d-c440d5d4e6a6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## ⚠️ Error Handling\n\nWhen emails fail processing:\n1. Remove from pending queue\n2. Label as error for manual review\n3. Typically happens for auto-replies or malformed emails\n\nErrors require manual intervention by staff",
+        "height": 224,
+        "width": 398
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -544,
+        1472
+      ],
+      "typeVersion": 1,
+      "id": "7cc012f3-6496-4ffd-a66c-f78e70c05924",
+      "name": "Error Handling Section"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_1374236297681201562"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -528,
+        1296
+      ],
+      "id": "7deda3ef-b393-4ea6-b324-a21061902076",
+      "name": "Labeled as Error",
+      "webhookId": "6c46b599-c84f-4f12-9c2f-470a8f518292",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_1676358472808098076"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -336,
+        1296
+      ],
+      "id": "707d4e85-085e-4abe-98b6-64814e93718f",
+      "name": "Removed from Pending for Error",
+      "webhookId": "b4882b99-1c7c-4610-8097-ef0ab9b385d2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qf0FSaftQ9IHtrMg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🔄 Knowledge Base Embedding Generator\n\n**Separate workflow for vector database:**\n1. Fetches records without embeddings\n2. Processes in batches of 3\n3. Generates embeddings via OpenAI\n4. Updates Supabase vector store\n\nRun this periodically to embed new knowledge base content",
+        "height": 276,
+        "width": 432,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        -544
+      ],
+      "typeVersion": 1,
+      "id": "ec480e6f-090c-4baf-a208-3ae39d5af77a",
+      "name": "Embedding Generator Section"
+    },
+    {
+      "parameters": {
+        "url": "https://fmtzzxdjrlvsmjxueffu.supabase.co/rest/v1/knowledge_base?select=id,content&embedding=is.null",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_ANON_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        64,
+        -240
+      ],
+      "id": "7ba3acab-c69c-4ca3-827d-f440fea949f4",
+      "name": "Fetch Records Without Embeddings1"
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        272,
+        -240
+      ],
+      "id": "e3588712-4022-47e8-91d2-2edee15d26ef",
+      "name": "Split In Batches1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -352
+      ],
+      "id": "36619f25-639a-4478-aab1-e874f39c8f41",
+      "name": "Completion Check1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {{ JSON.stringify($json.content) }},\n  \"model\": \"text-embedding-3-small\",\n  \"encoding_format\": \"float\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        -192
+      ],
+      "id": "aa5bdf71-331a-4be6-8002-2e75bd2543b4",
+      "name": "Generate Embeddings",
+      "credentials": {
+        "openAiApi": {
+          "id": "DZ21WrwWq8V8St6J",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://{{SUPABASE_URL}}/rest/v1/knowledge_base?id=eq.{{ $('Split In Batches1').item.json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ embedding: $json.data[0].embedding }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        -192
+      ],
+      "id": "c5514d33-d9eb-4420-b429-f4ee38e3e469",
+      "name": "Update Supabase with Embeddings",
+      "credentials": {
+        "supabaseApi": {
+          "id": "iOT8A2TOi0UYEE95",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Labeled as Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark a message as read": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Labeled as Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Extractor": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "RAG Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Inputs": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Labelad as Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue for Approval": {
+      "main": [
+        [
+          {
+            "node": "Log Queue Creation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Queue Creation": {
+      "main": [
+        [
+          {
+            "node": "Clean AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean AI Response": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Store Slack Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Action": {
+      "main": [
+        [
+          {
+            "node": "Get Queued Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Queued Email": {
+      "main": [
+        [
+          {
+            "node": "Check Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Action": {
+      "main": [
+        [
+          {
+            "node": "Send Approved Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Labeled as Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approved Email": {
+      "main": [
+        [
+          {
+            "node": "Labeled as Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Labeled as Approved": {
+      "main": [
+        [
+          {
+            "node": "Remove to Approved from Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove to Approved from Processed": {
+      "main": [
+        [
+          {
+            "node": "Mark as Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Approved": {
+      "main": [
+        [
+          {
+            "node": "Log Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Approval": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields for Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields for Approved": {
+      "main": [
+        [
+          {
+            "node": "Update Approved or Rejected Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Labeled as Rejected": {
+      "main": [
+        [
+          {
+            "node": "Remove to Rejected from Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove to Rejected from Processed": {
+      "main": [
+        [
+          {
+            "node": "Mark as Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Rejected": {
+      "main": [
+        [
+          {
+            "node": "Log Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Rejection": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields for Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields for Rejected": {
+      "main": [
+        [
+          {
+            "node": "Update Approved or Rejected Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Labeled as Pending": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Labelad as Processed": {
+      "main": [
+        [
+          {
+            "node": "Removed from Pending for Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Removed from Pending for Processed": {
+      "main": [
+        [
+          {
+            "node": "Queue for Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Labeled as Error": {
+      "main": [
+        [
+          {
+            "node": "Removed from Pending for Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Records Without Embeddings1": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches1": {
+      "main": [
+        [
+          {
+            "node": "Completion Check1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Update Supabase with Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Supabase with Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c6385825-33d9-4a6b-b5f1-1e80e610054e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3bf4492e88946ef4ead7c50651cc62d2e42705454f07027c6099fe5bbf76de1"
+  },
+  "id": "HkRIlqSiLcAqMq59",
+  "tags": []
+}

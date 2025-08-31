@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>n8n Workflow Viewer</title>
+<style>
+  html, body { height:100%; margin:0; }
+  #viewport {
+    width:100%; height:100%;
+    background:#0b1220; /* dark bg */
+    overflow:hidden; position:relative;
+    touch-action:none;
+  }
+  #img {
+    user-select:none; -webkit-user-drag:none; pointer-events:none;
+    max-width:none; /* allow beyond container */
+    transform-origin: 0 0;
+  }
+  .hud {
+    position: fixed; right: 12px; bottom: 12px;
+    background: rgba(0,0,0,.5); color: #fff; padding: 6px 10px; border-radius: 8px;
+    font-family: system-ui, sans-serif; font-size: 12px;
+  }
+  .btn { margin-left: 6px; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div id="viewport">
+    <img id="img" src="./assets/full_workflow.png" alt="n8n Workflow">
+    <div class="hud">
+      Scroll to zoom · drag to pan
+      <span class="btn" id="zoomIn">＋</span>
+      <span class="btn" id="zoomOut">－</span>
+      <span class="btn" id="reset">⭯</span>
+    </div>
+  </div>
+
+  <!-- Panzoom library -->
+  <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+  <script>
+    const viewport = document.getElementById('viewport');
+    const img = document.getElementById('img');
+
+    const panzoom = Panzoom(img, {
+      maxScale: 8,
+      minScale: 0.2,
+      step: 0.1,
+      contain: 'outside'
+    });
+
+    // Wheel zoom
+    viewport.addEventListener('wheel', e => {
+      e.preventDefault();
+      const scale = e.deltaY < 0 ? panzoom.getScale() + 0.15 : panzoom.getScale() - 0.15;
+      panzoom.zoomToPoint(scale, { clientX: e.clientX, clientY: e.clientY });
+    }, { passive: false });
+
+    // Drag to pan
+    viewport.addEventListener('mousedown', e => panzoom.panStart(e));
+    window.addEventListener('mousemove', e => panzoom.pan(e));
+    window.addEventListener('mouseup', () => panzoom.panEnd());
+
+    // HUD buttons
+    document.getElementById('zoomIn').onclick  = () => panzoom.zoomIn();
+    document.getElementById('zoomOut').onclick = () => panzoom.zoomOut();
+    document.getElementById('reset').onclick   = () => panzoom.reset({ animate: true });
+
+    // Fit to screen
+    window.addEventListener('load', () => {
+      const scaleX = viewport.clientWidth  / img.naturalWidth;
+      const scaleY = viewport.clientHeight / img.naturalHeight;
+      const scale = Math.min(scaleX, scaleY) * 0.95;
+      panzoom.zoom(scale, { animate: false });
+      panzoom.pan(
+        (viewport.clientWidth  - img.naturalWidth  * scale) / 2,
+        (viewport.clientHeight - img.naturalHeight * scale) / 2,
+        { animate: false }
+      );
+    });
+  </script>
+</body>
+</html>
