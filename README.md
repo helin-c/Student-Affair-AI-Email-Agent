@@ -7,6 +7,9 @@ An **AI-powered intake & reply workflow** built with **n8n, OpenAI, Supabase, Sl
 This workflow automates the processing of student emails, classifies and drafts responses using RAG (retrieval-augmented generation), and enables a **human-in-the-loop approval** via Slack before sending polished replies back to students.  
 
 ---
+![Full Workflow](docs/assets/full_workflow.png)
+
+[🔍 Open zoomable version](docs/zoom.html)
 
 ## ✨ Features  
 
