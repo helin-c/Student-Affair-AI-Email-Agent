@@ -176,7 +176,3 @@ Built as a demonstration of **AI + workflow automation in higher education**.
 See my [LinkedIn post](#) for the story behind this project.
 
 ```
-
----
-
-```
