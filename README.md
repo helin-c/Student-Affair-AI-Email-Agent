@@ -1,6 +1,6 @@
 
 
-````markdown
+
 # 🎓 Student Affairs AI Email Agent  
 
 An **AI-powered intake & reply workflow** built with **n8n, OpenAI, Supabase, Slack, and Gmail**.  
